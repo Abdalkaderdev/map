@@ -346,7 +346,7 @@ const InteractiveMap: React.FC = () => {
       {/* Control Panel */}
       <div className="control-panel">
         <div className="header-section">
-          <img src="/logo-realhouse.png" alt="RealHouse" className="company-logo" />
+          <img src="/logo-realhouse.png" alt="RealHouse" className="company-logo" onError={(e) => e.currentTarget.style.display = 'none'} />
           <h3>Interactive Plot Map</h3>
         </div>
         
