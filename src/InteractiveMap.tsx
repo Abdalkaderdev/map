@@ -421,7 +421,7 @@ const InteractiveMap: React.FC = () => {
             fetchpriority="high"
             style={{ 
               display: isImageLoaded && !imageError ? 'block' : 'none',
-              imageRendering: 'optimizeSpeed'
+              imageRendering: 'optimizeSpeed' as any
             }}
           />
           {imageError && (
