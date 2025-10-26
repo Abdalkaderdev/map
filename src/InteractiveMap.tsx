@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useCanvas } from './hooks/useCanvas';
 import './InteractiveMap.css';
 
 interface Plot {
@@ -20,8 +21,7 @@ interface MapData {
 }
 
 const InteractiveMap: React.FC = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+  const { canvasRef, imageRef, drawPlots } = useCanvas();
   const [plots, setPlots] = useState<Plot[]>([]);
   const [mapData, setMapData] = useState<MapData | null>(null);
   const [scale, setScale] = useState(1);
@@ -34,31 +34,43 @@ const InteractiveMap: React.FC = () => {
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [showAllPlots, setShowAllPlots] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [selectedPlot, setSelectedPlot] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentZoom, setCurrentZoom] = useState(1);
 
-  // Load plot data
+  // Progressive loading with chunks
   useEffect(() => {
     const loadPlots = async () => {
       try {
-        console.log('Loading plot data...');
+        setIsLoading(true);
         const response = await fetch('/plots-for-editing.json');
+        if (!response.ok) throw new Error('Failed to load plot data');
         const data = await response.json();
-        console.log('Loaded data:', data);
         setMapData(data);
         
-        // Keep normalized coordinates (0-1) - we'll convert to canvas coordinates in redraw
-        const normalizedPlots = data.plots.map((plot: any, index: number) => ({
+        // Load plots in chunks for better performance
+        const chunkSize = 200;
+        const allPlots = data.plots.map((plot: any, index: number) => ({
           id: Date.now() + index,
           number: plot.number,
           size: plot.size || '',
           color: plot.color || '#ff6b6b',
-          x: plot.x, // Keep as normalized (0-1)
-          y: plot.y  // Keep as normalized (0-1)
+          x: plot.x,
+          y: plot.y
         }));
         
-        console.log('Normalized plots:', normalizedPlots.slice(0, 5)); // Log first 5 plots
-        setPlots(normalizedPlots);
+        // Load first chunk immediately
+        setPlots(allPlots.slice(0, chunkSize));
+        setIsLoading(false);
+        
+        // Load remaining chunks progressively
+        for (let i = chunkSize; i < allPlots.length; i += chunkSize) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          setPlots(prev => [...prev, ...allPlots.slice(i, i + chunkSize)]);
+        }
       } catch (error) {
         console.error('Error loading plots:', error);
+        setIsLoading(false);
       }
     };
 
@@ -111,91 +123,10 @@ const InteractiveMap: React.FC = () => {
     }
   };
 
-  // Redraw canvas
+  // Redraw canvas using custom hook
   const redraw = useCallback(() => {
-    if (!canvasRef.current || !imageRef.current) return;
-    
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Clear canvas efficiently
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Get the original image dimensions (before any transforms)
-    const img = imageRef.current;
-    const originalWidth = img.naturalWidth;
-    const originalHeight = img.naturalHeight;
-    
-    // Get the container dimensions
-    const containerRect = img.parentElement?.getBoundingClientRect();
-    if (!containerRect) return;
-    
-    // Calculate the image's display size (maintaining aspect ratio)
-    const containerWidth = containerRect.width;
-    const containerHeight = containerRect.height;
-    const scaleX = containerWidth / originalWidth;
-    const scaleY = containerHeight / originalHeight;
-    const displayScale = Math.min(scaleX, scaleY);
-    
-    const displayWidth = originalWidth * displayScale;
-    const displayHeight = originalHeight * displayScale;
-    
-    // Center the image in the container
-    const imgLeft = (containerWidth - displayWidth) / 2;
-    const imgTop = (containerHeight - displayHeight) / 2;
-    
-    // Only draw plots if we're showing all plots or if there's a highlighted plot
-    const plotsToDraw = showAllPlots ? plots : (highlightedPlot !== null ? [plots[highlightedPlot]] : []);
-    
-    // Early return if no plots to draw
-    if (plotsToDraw.length === 0) return;
-    
-    // Set common styles once for performance
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = 'bold 8px Arial';
-    
-    // Draw plots with optimized rendering
-    for (let i = 0; i < plotsToDraw.length; i++) {
-      const plot = plotsToDraw[i];
-      
-      // Convert normalized coordinates (0-1) to canvas coordinates
-      const x = imgLeft + (plot.x * displayWidth);
-      const y = imgTop + (plot.y * displayHeight);
-      
-      // Skip if outside visible area (with smaller margin for performance)
-      if (x < -20 || x > canvas.width + 20 || y < -20 || y > canvas.height + 20) {
-        continue;
-      }
-      
-      const isHighlighted = highlightedPlot !== null && plots.indexOf(plot) === highlightedPlot;
-      
-      // Draw highlight ring first if needed
-      if (isHighlighted) {
-        ctx.strokeStyle = 'rgba(255, 215, 0, 0.95)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(x, y, 12, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      
-      // Draw plot circle
-      ctx.fillStyle = plot.color;
-      ctx.beginPath();
-      ctx.arc(x, y, 6, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // Draw white border
-      ctx.strokeStyle = 'white';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      
-      // Draw plot number
-      ctx.fillStyle = 'white';
-      ctx.fillText(plot.number, x, y);
-    }
-  }, [plots, highlightedPlot, showAllPlots]);
+    drawPlots(plots, highlightedPlot, showAllPlots);
+  }, [plots, highlightedPlot, showAllPlots, drawPlots]);
 
   // Update image transform when scale or offset changes
   useEffect(() => {
@@ -239,6 +170,7 @@ const InteractiveMap: React.FC = () => {
     const factor = e.deltaY > 0 ? 0.9 : 1.1;
     const newScale = Math.max(0.1, Math.min(5, scale * factor));
     setScale(newScale);
+    setCurrentZoom(newScale);
   };
 
   // Search functionality
@@ -300,24 +232,116 @@ const InteractiveMap: React.FC = () => {
   };
 
   const zoomIn = () => {
-    setScale(prev => Math.min(5, prev * 1.2));
+    const newScale = Math.min(5, scale * 1.2);
+    setScale(newScale);
+    setCurrentZoom(newScale);
   };
 
   const zoomOut = () => {
-    setScale(prev => Math.max(0.1, prev * 0.8));
+    const newScale = Math.max(0.1, scale * 0.8);
+    setScale(newScale);
+    setCurrentZoom(newScale);
   };
 
   const resetView = () => {
     setScale(1);
+    setCurrentZoom(1);
     setOffsetX(0);
     setOffsetY(0);
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch(e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          setOffsetY(prev => prev + 50);
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          setOffsetY(prev => prev - 50);
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          setOffsetX(prev => prev + 50);
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          setOffsetX(prev => prev - 50);
+          break;
+        case '+':
+        case '=':
+          e.preventDefault();
+          zoomIn();
+          break;
+        case '-':
+          e.preventDefault();
+          zoomOut();
+          break;
+        case '0':
+          e.preventDefault();
+          resetView();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [scale]);
+
+  // Plot click handler
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    if (isDragging) return;
+    
+    const canvas = canvasRef.current;
+    const img = imageRef.current;
+    if (!canvas || !img) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const containerRect = img.parentElement?.getBoundingClientRect();
+    if (!containerRect) return;
+
+    const scaleX = containerRect.width / img.naturalWidth;
+    const scaleY = containerRect.height / img.naturalHeight;
+    const displayScale = Math.min(scaleX, scaleY);
+    
+    const displayWidth = img.naturalWidth * displayScale;
+    const displayHeight = img.naturalHeight * displayScale;
+    const imgLeft = (containerRect.width - displayWidth) / 2;
+    const imgTop = (containerRect.height - displayHeight) / 2;
+
+    // Find clicked plot
+    for (let i = 0; i < plots.length; i++) {
+      const plot = plots[i];
+      const plotX = imgLeft + (plot.x * displayWidth);
+      const plotY = imgTop + (plot.y * displayHeight);
+      
+      const distance = Math.sqrt((clickX - plotX) ** 2 + (clickY - plotY) ** 2);
+      if (distance <= 12) {
+        setSelectedPlot(i);
+        setHighlightedPlot(i);
+        setShowAllPlots(false);
+        return;
+      }
+    }
+    
+    // Clear selection if clicked elsewhere
+    setSelectedPlot(null);
+    setHighlightedPlot(null);
   };
 
   return (
     <div className="interactive-map-container">
       {/* Control Panel */}
       <div className="control-panel">
-        <h3>Interactive Plot Map</h3>
+        <div className="header-section">
+          <img src="/logo-realhouse.png" alt="RealHouse" className="company-logo" />
+          <h3>Interactive Plot Map</h3>
+        </div>
         
         <div className="search-section">
           <h4>Search</h4>
@@ -344,18 +368,45 @@ const InteractiveMap: React.FC = () => {
           <button onClick={toggleAllPlots}>
             {showAllPlots ? 'Hide All Plots' : 'Show All Plots'}
           </button>
+          <div className="zoom-info">
+            <p>Zoom: {Math.round(currentZoom * 100)}%</p>
+          </div>
           <p>Click and drag to pan, scroll to zoom</p>
+          <p>Use arrow keys, +/- for navigation</p>
+          {selectedPlot !== null && (
+            <div className="selected-plot">
+              <h5>Selected Plot</h5>
+              <p><strong>Number:</strong> {plots[selectedPlot]?.number}</p>
+              <p><strong>Size:</strong> {plots[selectedPlot]?.size || 'N/A'}</p>
+              <button onClick={() => {
+                const newNumber = prompt('Enter new plot number:', plots[selectedPlot]?.number);
+                if (newNumber && newNumber !== plots[selectedPlot]?.number) {
+                  const updatedPlots = [...plots];
+                  updatedPlots[selectedPlot] = { ...updatedPlots[selectedPlot], number: newNumber };
+                  setPlots(updatedPlots);
+                }
+              }}>Edit Number</button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Map Container */}
       <div className="map-container">
+        {isLoading && (
+          <div className="loading-overlay">
+            <div className="loading-spinner"></div>
+            <p>Loading plots... ({plots.length} loaded)</p>
+          </div>
+        )}
         <div className="image-container">
           <img
             ref={imageRef}
             src="/xaritakark 2.jpg"
             alt="Base Map"
             onLoad={handleImageLoad}
+            loading="eager"
+            decoding="async"
             style={{ display: isImageLoaded ? 'block' : 'none' }}
           />
           <canvas
@@ -365,6 +416,7 @@ const InteractiveMap: React.FC = () => {
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onWheel={handleWheel}
+            onClick={handleCanvasClick}
             style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
           />
         </div>

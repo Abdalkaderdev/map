@@ -14,12 +14,26 @@
   box-shadow: 2px 0 10px rgba(0,0,0,0.1);
 }
 
+.header-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #667eea;
+}
+
+.company-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+}
+
 .control-panel h3 {
   color: #495057;
-  margin-bottom: 20px;
+  margin: 0;
   font-size: 1.2rem;
-  border-bottom: 2px solid #667eea;
-  padding-bottom: 10px;
+  flex: 1;
 }
 
 .control-panel h4 {
@@ -113,6 +127,90 @@
   margin-top: 10px;
 }
 
+.zoom-info {
+  background: rgba(0,0,0,0.1);
+  padding: 8px;
+  border-radius: 4px;
+  margin: 10px 0;
+}
+
+.zoom-info p {
+  margin: 0;
+  font-weight: bold;
+  color: #495057;
+}
+
+.selected-plot {
+  background: rgba(102, 126, 234, 0.1);
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 15px;
+  border-left: 4px solid #667eea;
+}
+
+.selected-plot h5 {
+  margin: 0 0 10px 0;
+  color: #495057;
+  font-size: 1rem;
+}
+
+.selected-plot p {
+  margin: 5px 0;
+  font-size: 0.85rem;
+}
+
+.selected-plot button {
+  background: linear-gradient(45deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-top: 8px;
+  transition: all 0.3s ease;
+}
+
+.selected-plot button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-overlay p {
+  color: #495057;
+  font-size: 1rem;
+  margin: 0;
+}
+
 .map-container {
   flex: 1;
   position: relative;
@@ -170,12 +268,32 @@
   
   .control-panel {
     width: 100%;
-    height: 200px;
+    height: 280px;
     order: 2;
+    overflow-y: auto;
   }
   
   .map-container {
-    height: calc(100vh - 200px);
+    height: calc(100vh - 280px);
     order: 1;
+  }
+  
+  .header-section {
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+  }
+  
+  .company-logo {
+    height: 30px;
+  }
+  
+  .selected-plot {
+    padding: 10px;
+    margin-top: 10px;
+  }
+  
+  .selected-plot h5 {
+    font-size: 0.9rem;
   }
 }

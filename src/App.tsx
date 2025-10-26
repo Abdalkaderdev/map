@@ -1,12 +1,15 @@
 import React from 'react';
 import InteractiveMap from './InteractiveMap';
+import ErrorBoundary from './ErrorBoundary';
 import './App.css';
 
 function App() {
   return (
-    <div className="App">
-      <InteractiveMap />
-    </div>
+    <ErrorBoundary>
+      <div className="App">
+        <InteractiveMap />
+      </div>
+    </ErrorBoundary>
   );
 }
 
