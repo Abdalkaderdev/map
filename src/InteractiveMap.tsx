@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useCanvas } from './hooks/useCanvas';
+import { throttle } from './utils/performance';
 import './InteractiveMap.css';
 
 interface Plot {
@@ -48,8 +49,8 @@ const InteractiveMap: React.FC = () => {
         const data = await response.json();
         setMapData(data);
         
-        // Load plots in chunks for better performance
-        const chunkSize = 200;
+        // Load plots in optimized chunks
+        const chunkSize = 500;
         const allPlots = data.plots.map((plot: any, index: number) => ({
           id: Date.now() + index,
           number: plot.number,
@@ -63,11 +64,21 @@ const InteractiveMap: React.FC = () => {
         setPlots(allPlots.slice(0, chunkSize));
         setIsLoading(false);
         
-        // Load remaining chunks progressively
-        for (let i = chunkSize; i < allPlots.length; i += chunkSize) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-          setPlots(prev => [...prev, ...allPlots.slice(i, i + chunkSize)]);
-        }
+        // Load remaining chunks with requestIdleCallback for better performance
+        const loadChunk = (startIndex: number) => {
+          if (startIndex >= allPlots.length) return;
+          
+          const chunk = allPlots.slice(startIndex, startIndex + chunkSize);
+          setPlots(prev => [...prev, ...chunk]);
+          
+          if ('requestIdleCallback' in window) {
+            requestIdleCallback(() => loadChunk(startIndex + chunkSize));
+          } else {
+            setTimeout(() => loadChunk(startIndex + chunkSize), 16);
+          }
+        };
+        
+        loadChunk(chunkSize);
       } catch (error) {
         console.error('Error loading plots:', error);
         setIsLoading(false);
@@ -128,18 +139,17 @@ const InteractiveMap: React.FC = () => {
     drawPlots(plots, highlightedPlot, showAllPlots);
   }, [plots, highlightedPlot, showAllPlots, drawPlots]);
 
-  // Update image transform when scale or offset changes
+  // Debounced transform updates
   useEffect(() => {
     updateImageTransform();
-    // Use requestAnimationFrame for smoother performance
-    requestAnimationFrame(() => {
-      redraw();
-    });
+    const rafId = requestAnimationFrame(() => redraw());
+    return () => cancelAnimationFrame(rafId);
   }, [scale, offsetX, offsetY, redraw]);
 
-  // Redraw when plots or scale changes
+  // Throttled redraw for better performance
   useEffect(() => {
-    redraw();
+    const timeoutId = setTimeout(() => redraw(), 16);
+    return () => clearTimeout(timeoutId);
   }, [redraw]);
 
 
@@ -152,28 +162,44 @@ const InteractiveMap: React.FC = () => {
     });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setIsDragging(true);
-      setOffsetX(e.clientX - dragStart.x);
-      setOffsetY(e.clientY - dragStart.y);
-    }
-  };
+  const handleMouseMove = useCallback(
+    throttle((e: React.MouseEvent) => {
+      if (isPanning) {
+        setIsDragging(true);
+        setOffsetX(e.clientX - dragStart.x);
+        setOffsetY(e.clientY - dragStart.y);
+      }
+    }, 16),
+    [isPanning, dragStart]
+  );
 
   const handleMouseUp = () => {
     setIsPanning(false);
     setIsDragging(false);
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const factor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newScale = Math.max(0.1, Math.min(5, scale * factor));
-    setScale(newScale);
-    setCurrentZoom(newScale);
-  };
+  const handleWheel = useCallback(
+    throttle((e: React.WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newScale = Math.max(0.1, Math.min(5, scale * factor));
+      setScale(newScale);
+      setCurrentZoom(newScale);
+    }, 16),
+    [scale]
+  );
 
-  // Search functionality
+  // Memoized search functionality
+  const searchIndex = useMemo(() => {
+    const index = new Map<string, number>();
+    plots.forEach((plot, i) => {
+      const key = plot.number.toLowerCase();
+      index.set(key, i);
+      index.set(key.replace('plot ', ''), i);
+    });
+    return index;
+  }, [plots]);
+
   const handleSearch = () => {
     if (!searchQuery.trim()) return;
     
@@ -181,33 +207,14 @@ const InteractiveMap: React.FC = () => {
     console.log('Total plots available:', plots.length);
     
     const query = searchQuery.toLowerCase().trim();
+    let plotIndex = searchIndex.get(query) ?? -1;
     
-    // Try different search patterns
-    let plotIndex = plots.findIndex(plot => {
-      const plotNumber = plot.number.toLowerCase();
-      console.log('Checking plot:', plotNumber, 'against query:', query);
-      return plotNumber === query;
-    });
-    
-    // If not found, try without "plot" prefix
+    // Fallback to partial match if exact not found
     if (plotIndex === -1) {
-      plotIndex = plots.findIndex(plot => {
-        const plotNumber = plot.number.toLowerCase().replace('plot ', '');
-        console.log('Checking plot (no prefix):', plotNumber, 'against query:', query);
-        return plotNumber === query;
-      });
+      plotIndex = plots.findIndex(plot => 
+        plot.number.toLowerCase().includes(query)
+      );
     }
-    
-    // If still not found, try partial match
-    if (plotIndex === -1) {
-      plotIndex = plots.findIndex(plot => {
-        const plotNumber = plot.number.toLowerCase();
-        console.log('Checking plot (partial):', plotNumber, 'against query:', query);
-        return plotNumber.includes(query);
-      });
-    }
-    
-    console.log('Search result:', plotIndex);
     
     if (plotIndex !== -1) {
       setHighlightedPlot(plotIndex);

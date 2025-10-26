@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useMemo } from 'react';
 
 interface Plot {
   id: number;
@@ -46,11 +46,18 @@ export const useCanvas = () => {
     ctx.textBaseline = 'middle';
     ctx.font = 'bold 8px Arial';
     
-    for (const plot of plotsToDraw) {
+    // Batch canvas operations for better performance
+    const plotsInView = plotsToDraw.filter(plot => {
+      const x = imgLeft + (plot.x * displayWidth);
+      const y = imgTop + (plot.y * displayHeight);
+      return x >= -20 && x <= canvas.width + 20 && y >= -20 && y <= canvas.height + 20;
+    });
+
+    for (const plot of plotsInView) {
       const x = imgLeft + (plot.x * displayWidth);
       const y = imgTop + (plot.y * displayHeight);
       
-      if (x < -20 || x > canvas.width + 20 || y < -20 || y > canvas.height + 20) continue;
+      // Viewport culling already done above
       
       const isHighlighted = highlightedPlot !== null && plots.indexOf(plot) === highlightedPlot;
       
