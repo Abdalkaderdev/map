@@ -6,7 +6,7 @@ const preloadImage = (src: string) => {
   link.rel = 'preload';
   link.as = 'image';
   link.href = src;
-  link.fetchPriority = 'high';
+  (link as any).fetchPriority = 'high';
   document.head.appendChild(link);
 };
 
@@ -24,8 +24,8 @@ export const useImagePreloader = (src: string) => {
     const img = new Image();
     
     // Add high priority and preload hints
-    img.fetchPriority = 'high';
-    img.decoding = 'async';
+    (img as any).fetchPriority = 'high';
+    (img as any).decoding = 'async';
     
     img.onload = () => {
       setLoaded(true);
