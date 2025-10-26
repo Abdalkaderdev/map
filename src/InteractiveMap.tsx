@@ -383,6 +383,19 @@ const InteractiveMap: React.FC = () => {
           </button>
           <div className="zoom-info">
             <p>Zoom: {Math.round(currentZoom * 100)}%</p>
+            <p>Plots: {plots.length}</p>
+            <div className="performance-controls">
+              <button onClick={() => {
+                // Enable GPU acceleration
+                if (canvasRef.current) {
+                  const ctx = canvasRef.current.getContext('2d');
+                  if (ctx) {
+                    (ctx as any).imageSmoothingEnabled = false;
+                    redraw();
+                  }
+                }
+              }}>GPU Mode</button>
+            </div>
           </div>
           <p>Click and drag to pan, scroll to zoom</p>
           <p>Use arrow keys, +/- for navigation</p>

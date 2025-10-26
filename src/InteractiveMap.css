@@ -176,6 +176,26 @@
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
+.performance-controls {
+  margin-top: 8px;
+}
+
+.performance-controls button {
+  background: linear-gradient(45deg, #28a745, #20c997);
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.3s ease;
+}
+
+.performance-controls button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
 .loading-overlay {
   position: absolute;
   top: 0;
@@ -280,6 +300,9 @@
   transform-style: preserve-3d;
   image-rendering: optimizeSpeed;
   image-rendering: -webkit-optimize-contrast;
+  /* GPU acceleration */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
 }
 
 .overlay-canvas:active {
