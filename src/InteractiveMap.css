@@ -309,6 +309,53 @@
   cursor: grabbing;
 }
 
+.overlay-canvas.calibration-mode {
+  cursor: crosshair !important;
+  border: 2px dashed #ff6b6b;
+}
+
+.calibration-section {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.calibration-section button {
+  margin: 2px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.correction-presets {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f0f8ff;
+}
+
+.correction-presets h5 {
+  margin: 0 0 8px 0;
+  color: #333;
+}
+
+.correction-presets button {
+  margin: 2px;
+  padding: 4px 8px;
+  font-size: 11px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.correction-presets button:hover {
+  background-color: #45a049;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .interactive-map-container {

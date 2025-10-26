@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useCanvas } from './hooks/useCanvas';
 import { useProgressiveImage } from './hooks/useProgressiveImage';
 import { throttle } from './utils/performance';
+import { applyGlobalCorrection, exportPlotData, CORRECTION_PRESETS, PlotCalibration } from './utils/plotCalibration';
 import './InteractiveMap.css';
 
 interface Plot {
@@ -44,6 +45,8 @@ const InteractiveMap: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentZoom, setCurrentZoom] = useState(1);
   const [imageError, setImageError] = useState(false);
+  const [calibrationMode, setCalibrationMode] = useState(false);
+  const [calibrationData, setCalibrationData] = useState<{plotNumber: string, x: number, y: number}[]>([]);
 
   // Progressive loading with chunks
   useEffect(() => {
@@ -327,6 +330,20 @@ const InteractiveMap: React.FC = () => {
     const imgLeft = (containerRect.width - displayWidth) / 2;
     const imgTop = (containerRect.height - displayHeight) / 2;
 
+    // Calibration mode - capture click coordinates
+    if (calibrationMode) {
+      const relativeX = (clickX - imgLeft) / displayWidth;
+      const relativeY = (clickY - imgTop) / displayHeight;
+      
+      const plotNumber = prompt('Enter plot number for this position:');
+      if (plotNumber) {
+        const newCalibration = { plotNumber, x: relativeX, y: relativeY };
+        setCalibrationData(prev => [...prev, newCalibration]);
+        console.log('Calibration point added:', newCalibration);
+      }
+      return;
+    }
+
     // Find clicked plot
     for (let i = 0; i < plots.length; i++) {
       const plot = plots[i];
@@ -345,6 +362,30 @@ const InteractiveMap: React.FC = () => {
     // Clear selection if clicked elsewhere
     setSelectedPlot(null);
     setHighlightedPlot(null);
+  };
+
+  // Export calibration data
+  const exportCalibrationData = () => {
+    const dataStr = JSON.stringify(calibrationData, null, 2);
+    const dataBlob = new Blob([dataStr], {type: 'application/json'});
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'plot-calibration.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Apply correction presets
+  const applyCorrection = (preset: keyof typeof CORRECTION_PRESETS) => {
+    const correctedPlots = applyGlobalCorrection(plots, CORRECTION_PRESETS[preset]);
+    setPlots(correctedPlots);
+    redraw();
+  };
+
+  // Export corrected plot data
+  const exportCorrectedData = () => {
+    exportPlotData(plots, mapData);
   };
 
   return (
@@ -381,6 +422,31 @@ const InteractiveMap: React.FC = () => {
           <button onClick={toggleAllPlots}>
             {showAllPlots ? 'Hide All Plots' : 'Show All Plots'}
           </button>
+          <div className="calibration-section">
+            <button 
+              onClick={() => setCalibrationMode(!calibrationMode)}
+              style={{ backgroundColor: calibrationMode ? '#ff6b6b' : '#4CAF50' }}
+            >
+              {calibrationMode ? 'Exit Calibration' : 'Calibration Mode'}
+            </button>
+            {calibrationMode && (
+              <div>
+                <p>Click on plot locations to calibrate positions</p>
+                <p>Calibrated: {calibrationData.length} plots</p>
+                <button onClick={exportCalibrationData}>Export Calibration</button>
+                <button onClick={() => setCalibrationData([])}>Clear</button>
+              </div>
+            )}
+          </div>
+          <div className="correction-presets">
+            <h5>Quick Corrections</h5>
+            <button onClick={() => applyCorrection('GENERAL_SHIFT')}>General Shift</button>
+            <button onClick={() => applyCorrection('ASPECT_CORRECTION')}>Aspect Fix</button>
+            <button onClick={() => applyCorrection('MAJOR_SHIFT')}>Major Shift</button>
+            <button onClick={exportCorrectedData}>Export Fixed Data</button>
+              </div>
+            )}
+          </div>
           <div className="zoom-info">
             <p>Zoom: {Math.round(currentZoom * 100)}%</p>
             <p>Plots: {plots.length}</p>
@@ -450,13 +516,13 @@ const InteractiveMap: React.FC = () => {
           )}
           <canvas
             ref={canvasRef}
-            className="overlay-canvas"
+            className={`overlay-canvas ${calibrationMode ? 'calibration-mode' : ''}`}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onWheel={handleWheel}
             onClick={handleCanvasClick}
-            style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+            style={{ cursor: calibrationMode ? 'crosshair' : (isPanning ? 'grabbing' : 'grab') }}
           />
         </div>
       </div>
