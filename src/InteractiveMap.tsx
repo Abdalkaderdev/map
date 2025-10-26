@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useCanvas } from './hooks/useCanvas';
+import { useImagePreloader } from './hooks/useImagePreloader';
 import { throttle } from './utils/performance';
 import './InteractiveMap.css';
 
@@ -23,6 +24,7 @@ interface MapData {
 
 const InteractiveMap: React.FC = () => {
   const { canvasRef, imageRef, drawPlots } = useCanvas();
+  const { loaded: imagePreloaded } = useImagePreloader('/xaritakark 2.jpg');
   const [plots, setPlots] = useState<Plot[]>([]);
   const [mapData, setMapData] = useState<MapData | null>(null);
   const [scale, setScale] = useState(1);
@@ -38,6 +40,7 @@ const InteractiveMap: React.FC = () => {
   const [selectedPlot, setSelectedPlot] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentZoom, setCurrentZoom] = useState(1);
+  const [imageError, setImageError] = useState(false);
 
   // Progressive loading with chunks
   useEffect(() => {
@@ -400,10 +403,10 @@ const InteractiveMap: React.FC = () => {
 
       {/* Map Container */}
       <div className="map-container">
-        {isLoading && (
+        {(isLoading || !imagePreloaded) && (
           <div className="loading-overlay">
             <div className="loading-spinner"></div>
-            <p>Loading plots... ({plots.length} loaded)</p>
+            <p>{!imagePreloaded ? 'Loading map image...' : `Loading plots... (${plots.length} loaded)`}</p>
           </div>
         )}
         <div className="image-container">
@@ -412,10 +415,21 @@ const InteractiveMap: React.FC = () => {
             src="/xaritakark 2.jpg"
             alt="Base Map"
             onLoad={handleImageLoad}
+            onError={() => setImageError(true)}
             loading="eager"
             decoding="async"
-            style={{ display: isImageLoaded ? 'block' : 'none' }}
+            fetchPriority="high"
+            style={{ 
+              display: isImageLoaded && !imageError ? 'block' : 'none',
+              imageRendering: 'optimizeSpeed'
+            }}
           />
+          {imageError && (
+            <div className="image-error">
+              <p>Failed to load map image</p>
+              <button onClick={() => window.location.reload()}>Retry</button>
+            </div>
+          )}
           <canvas
             ref={canvasRef}
             className="overlay-canvas"
