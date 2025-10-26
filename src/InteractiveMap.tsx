@@ -417,11 +417,8 @@ const InteractiveMap: React.FC = () => {
             onLoad={handleImageLoad}
             onError={() => setImageError(true)}
             loading="eager"
-            decoding="async"
-            fetchpriority="high"
             style={{ 
-              display: isImageLoaded && !imageError ? 'block' : 'none',
-              imageRendering: 'optimizeSpeed' as any
+              display: isImageLoaded && !imageError ? 'block' : 'none'
             }}
           />
           {imageError && (
